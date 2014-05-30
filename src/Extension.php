@@ -30,6 +30,10 @@ class Extension extends CompilerExtension
         "namingConvention" => [
             "repository" => null,
             "entity" => null
+        ],
+        "api" => [
+            "enabled" => false,
+            "prefix" => "api"
         ]
     ];
 
@@ -44,6 +48,11 @@ class Extension extends CompilerExtension
         // Cache service
         if ($config["cache"]) {
             $builder->addDefinition($this->prefix("cache"))->setClass("UniMapper\Nette\Cache");
+        }
+
+        if ($config["api"]["enabled"]) {
+            $builder->addDefinition($this->prefix("repositoryContainer"))
+                ->setClass("UniMapper\Nette\Api\RepositoryContainer");
         }
 
         // Debug mode only
@@ -119,9 +128,25 @@ class Extension extends CompilerExtension
 
         foreach ($repositories as $repository) {
 
-            // Register all mappers
-            foreach ($mappers as $mapper) {
-                $builder->getDefinition($repository)->addSetup("registerMapper", [$builder->getDefinition($mapper)]);
+            // Generate API
+            if ($config["api"]["enabled"]) {
+
+                // Register all mappers
+                foreach ($mappers as $mapper) {
+                    $builder->getDefinition($repository)->addSetup("registerMapper", [$builder->getDefinition($mapper)]);
+                }
+
+                $builder->getDefinition($this->prefix("repositoryContainer"))
+                    ->addSetup("registerRepository", [$builder->getDefinition($repository)]);
+
+		$builder->getDefinition("router")
+                    ->addSetup(
+                        '$service[] = UniMapper\Nette\Api\RouterFactory::create($this->getService(?), ?)',
+                        [
+                            $repository,
+                            $config['api']['prefix']
+                        ]
+                    );
             }
         }
     }
